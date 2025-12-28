@@ -1,139 +1,197 @@
 import React, { useState } from 'react';
 import './App.css';
 import axios from 'axios';
-import Button from '@mui/material/Button';
-import TextField from '@mui/material/TextField';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
-import ListItemText from '@mui/material/ListItemText';
+import { Button, Container, Box, Typography } from '@mui/material';
 
 function App() {
   const [gameId, setGameId] = useState(null);
   const [guess, setGuess] = useState('');
-  const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
   const [isWon, setIsWon] = useState(false);
   const [error, setError] = useState(null);
+  const [shake, setShake] = useState(false);
 
   const startNewGame = async () => {
-    // TODO: Call API to start game
     try {
       const response = await axios.post('http://localhost:8080/api/game/start');
       setGameId(response.data.gameId);
       setHistory([]);
-      setResult(null);
       setIsWon(false);
       setGuess('');
-      console.log(response.data);
+      setError(null);
     } catch (error) {
       console.error('Error starting game:', error);
+      setError('Failed to start game');
     }
   };
 
   const makeGuess = async () => {
+    if (guess.length !== 4) {
+      triggerShake();
+      return;
+    }
 
-    // TODO: Call API to make guess
     try {
       setError(null);
       const response = await axios.post(`http://localhost:8080/api/game/${gameId}/guess`, {
         guess
       });
 
-      setResult(response.data);
       setHistory((prevHistory) => [...prevHistory, response.data]);
-
-
 
       if (response.data.win === true) {
         setIsWon(true);
       }
 
       setGuess('');
-
-
     } catch (error) {
       console.error('Error making guess: ', error);
-      setError(error.response?.data?.message || 'Invalid guess format');
+      setError('Invalid guess');
+      triggerShake();
     }
-
-
-
-
   };
+
+  const triggerShake = () => {
+    setShake(true);
+    setTimeout(() => setShake(false), 500);
+  };
+
+  const handleKeyPress = (e) => {
+    if (isWon) return;
+
+    if (e.key === 'Enter') {
+      makeGuess();
+    } else if (e.key === 'Backspace') {
+      setGuess(guess.slice(0, -1));
+    } else if (/^[0-9]$/.test(e.key) && guess.length < 4) {
+      setGuess(guess + e.key);
+    }
+  };
+
+  React.useEffect(() => {
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [guess, isWon]);
 
   return (
     <div className="App">
-      <h1>Project Pin</h1>
+      <Container maxWidth="sm">
+        <Box className="game-container">
+          {/* Header */}
+          <header className="header">
+            <Typography variant="h4" className="title">
+              BULLS
+            </Typography>
+            <Typography variant="caption" className="subtitle">
+              Guess the 4-digit number
+            </Typography>
+          </header>
 
-      {/* TODO: Add UI elements */}
-      {/* Start Game Button */}
+          {/* Game Board */}
+          {gameId && (
+            <Box className="board">
+              {/* Previous Guesses */}
+              {history.map((result, rowIndex) => (
+                <Box key={rowIndex} className="guess-row">
+                  {result.guess.split('').map((digit, colIndex) => (
+                    <Box key={colIndex} className="tile tile-filled">
+                      {digit}
+                    </Box>
+                  ))}
+                  <Box className="feedback">
+                    <span className="bulls-count">{result.bulls}🎯</span>
+                    <span className="cows-count">{result.cows}🔄</span>
+                  </Box>
+                </Box>
+              ))}
 
-      <Button variant='contained' onClick={startNewGame}>Start Game</Button>
+              {/* Current Guess Row */}
+              {!isWon && (
+                <Box className={`guess-row current-row ${shake ? 'shake' : ''}`}>
+                  {[0, 1, 2, 3].map((index) => (
+                    <Box
+                      key={index}
+                      className={`tile ${guess[index] ? 'tile-active' : ''}`}
+                    >
+                      {guess[index] || ''}
+                    </Box>
+                  ))}
+                </Box>
+              )}
 
-      {/* Guess Input + Submit Button */}
-      {gameId && (
-        <div>
+              {/* Empty Rows */}
+              {!isWon && Array(Math.max(0, 5 - history.length - 1)).fill(0).map((_, rowIndex) => (
+                <Box key={`empty-${rowIndex}`} className="guess-row">
+                  {[0, 1, 2, 3].map((colIndex) => (
+                    <Box key={colIndex} className="tile tile-empty"></Box>
+                  ))}
+                </Box>
+              ))}
+            </Box>
+          )}
 
-          <TextField
-            required
-            id='guess'
-            label='Enter your guess'
-            // defaultValue={guess}
-            onChange={(e) => setGuess(e.target.value)}
-            onKeyPress={(e) => {
-              if (e.key === 'Enter') {
-                makeGuess();
-              }
-            }}
-            disabled={isWon}
-            value={guess}
-          />
+          {/* Error Message */}
+          {error && (
+            <Box className="error-message">
+              {error}
+            </Box>
+          )}
 
+          {/* Win Message */}
+          {isWon && (
+            <Box className="win-message">
+              <Typography variant="h5">🎉 Genius!</Typography>
+              <Typography variant="body1">
+                You solved it in {history.length} {history.length === 1 ? 'try' : 'tries'}
+              </Typography>
+            </Box>
+          )}
 
-          <Button variant='contained' onClick={makeGuess} disabled={isWon}>Submit Guess</Button>
+          {/* Instructions */}
+          {gameId && !isWon && (
+            <Box className="instructions">
+              <Typography variant="body2">
+                🎯 Bulls = correct digit in correct position
+              </Typography>
+              <Typography variant="body2">
+                🔄 Cows = correct digit in wrong position
+              </Typography>
+            </Box>
+          )}
 
-        </div>
-      )}
-      {error && (
-        <div style={{ color: 'red', margin: '10px' }}>
-          {error}
-        </div>
-      )}
-
-      {/* Result */}
-      {result && (
-        <div>
-          <p>Guess: {result.guess} | Bulls: {result.bulls} | Cows: {result.cows}</p>
-        </div>
-      )}
-
-      {/* Guess History */}
-      {gameId && !isWon && (
-        <p>Attempts: {history.length}</p>
-      )}
-      {history.length > 0 && (
-        // <ul>
-        //   {history.map((g, index) => (
-        //     <li key={index}>
-        //       {g.guess} → Bulls: {g.bulls}, Cows: {g.cows}
-        //     </li>
-        //   ))}
-        // </ul>
-        <List>
-          {history.map((g, index) => (
-            <ListItem key={index} >
-              <ListItemText
-                primary={`${g.guess} → Bulls: ${g.bulls}, Cows: ${g.cows}`}
-              />
-            </ListItem>
-          ))}
-        </List>
-
-      )}
-
-      {/* Win Message */}
-      {isWon && <h3>You won the game!</h3>}
-
+          {/* Action Buttons */}
+          <Box className="actions">
+            {!gameId ? (
+              <Button
+                variant="contained"
+                size="large"
+                onClick={startNewGame}
+                className="start-button"
+              >
+                Start Game
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="contained"
+                  onClick={makeGuess}
+                  disabled={isWon || guess.length !== 4}
+                  className="guess-button"
+                >
+                  Enter
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={startNewGame}
+                  className="new-game-button"
+                >
+                  New Game
+                </Button>
+              </>
+            )}
+          </Box>
+        </Box>
+      </Container>
     </div>
   );
 }
