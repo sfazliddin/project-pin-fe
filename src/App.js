@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import './App.css';
 import axios from 'axios';
+import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
 
 function App() {
   const [gameId, setGameId] = useState(null);
@@ -8,6 +13,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [history, setHistory] = useState([]);
   const [isWon, setIsWon] = useState(false);
+  const [error, setError] = useState(null);
 
   const startNewGame = async () => {
     // TODO: Call API to start game
@@ -28,17 +34,15 @@ function App() {
 
     // TODO: Call API to make guess
     try {
+      setError(null);
       const response = await axios.post(`http://localhost:8080/api/game/${gameId}/guess`, {
         guess
       });
-      console.log('RESPONSE DATA:', response.data);
+
       setResult(response.data);
-      console.log('HISTORY:', history);
-
-
       setHistory((prevHistory) => [...prevHistory, response.data]);
 
-      console.log('HISTORY:', history);
+
 
       if (response.data.win === true) {
         setIsWon(true);
@@ -49,6 +53,7 @@ function App() {
 
     } catch (error) {
       console.error('Error making guess: ', error);
+      setError(error.response?.data?.message || 'Invalid guess format');
     }
 
 
@@ -62,24 +67,36 @@ function App() {
 
       {/* TODO: Add UI elements */}
       {/* Start Game Button */}
-      <button onClick={startNewGame}>
-        Start Game
-      </button>
+
+      <Button variant='contained' onClick={startNewGame}>Start Game</Button>
 
       {/* Guess Input + Submit Button */}
       {gameId && (
         <div>
-          <input
-            type="text"
-            value={guess}
+
+          <TextField
+            required
+            id='guess'
+            label='Enter your guess'
+            // defaultValue={guess}
             onChange={(e) => setGuess(e.target.value)}
-            placeholder="Enter your guess"
+            onKeyPress={(e) => {
+              if (e.key === 'Enter') {
+                makeGuess();
+              }
+            }}
             disabled={isWon}
+            value={guess}
           />
 
-          <button onClick={makeGuess} disabled={isWon}>
-            Submit Guess
-          </button>
+
+          <Button variant='contained' onClick={makeGuess} disabled={isWon}>Submit Guess</Button>
+
+        </div>
+      )}
+      {error && (
+        <div style={{ color: 'red', margin: '10px' }}>
+          {error}
         </div>
       )}
 
@@ -91,14 +108,26 @@ function App() {
       )}
 
       {/* Guess History */}
+      {gameId && !isWon && (
+        <p>Attempts: {history.length}</p>
+      )}
       {history.length > 0 && (
-        <ul>
+        // <ul>
+        //   {history.map((g, index) => (
+        //     <li key={index}>
+        //       {g.guess} → Bulls: {g.bulls}, Cows: {g.cows}
+        //     </li>
+        //   ))}
+        // </ul>
+        <List>
           {history.map((g, index) => (
-            <li key={index}>
-              {g.guess} → Bulls: {g.bulls}, Cows: {g.cows}
-            </li>
+            <ListItem key={index} >
+              <ListItemText
+                primary={`${g.guess} → Bulls: ${g.bulls}, Cows: ${g.cows}`}
+              />
+            </ListItem>
           ))}
-        </ul>
+        </List>
 
       )}
 
